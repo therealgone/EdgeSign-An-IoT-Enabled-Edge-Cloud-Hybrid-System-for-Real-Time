@@ -1,0 +1,19 @@
+# EdgeSign V3 — Raspberry Pi Requirements
+
+# Computer vision and hand tracking
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+numpy>=1.24.0
+
+# WebSocket client
+websocket-client>=1.6.0
+
+# Optional: Audio recording
+sounddevice>=0.4.6
+
+# Optional: OLED display
+luma.oled>=3.8.0
+Pillow>=10.0.0
+
+# Optional: GPIO (Raspberry Pi only)
+# RPi.GPIO — install via apt on Pi: sudo apt install python3-rpi.gpio

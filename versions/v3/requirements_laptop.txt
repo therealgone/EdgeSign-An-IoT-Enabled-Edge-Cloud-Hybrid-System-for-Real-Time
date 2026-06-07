@@ -1,0 +1,30 @@
+# EdgeSign V3 — Laptop Requirements
+
+# Core ML
+numpy>=1.24.0
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+
+# Web server and WebSocket
+aiohttp>=3.8.0
+aiohttp-cors>=0.7.0
+websockets>=11.0.0
+
+# Computer vision (OCR preprocessing)
+opencv-python>=4.8.0
+Pillow>=10.0.0
+
+# Optional: OCR
+easyocr>=1.7.0
+
+# Optional: Audio transcription
+openai-whisper>=20231117
+
+# Optional: AI sentence generation
+google-generativeai>=0.3.0
+
+# Optional: Text-to-speech
+pyttsx3>=2.90
+
+# Optional: Bluetooth (Linux/Mac)
+# pybluez>=0.23

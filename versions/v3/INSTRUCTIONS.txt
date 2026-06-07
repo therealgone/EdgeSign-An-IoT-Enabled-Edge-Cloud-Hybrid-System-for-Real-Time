@@ -1,0 +1,76 @@
+Project: EdgeSign (Laptop + Raspberry Pi)
+
+1) Code files and where to run  
+- Laptop side: laptop_rec.py
+- Raspberry Pi side: pi_sender.py
+
+2) Software used
+
+Laptop (Windows)
+- Python 3.10+ (recommended)
+- pip (Python package installer)
+- Required Python packages:
+  pip install aiohttp aiohttp-cors websockets numpy opencv-python easyocr openai-whisper google-genai pyttsx3 pybluez
+
+Raspberry Pi
+- Raspberry Pi OS
+- Python 3.10+ (recommended)
+- pip
+- Required Python packages:
+  pip install opencv-python mediapipe websocket-client numpy sounddevice luma.oled pillow RPi.GPIO
+
+Notes:
+- If some optional features are not needed (audio/OLED/Bluetooth/OCR/Whisper/Gemini/TTS), the related package can be skipped.
+- Ensure camera is connected and accessible on Pi.
+- Ensure model file exists on Laptop:
+  models/sign_language_model.pkl
+
+3) Pre-run setup
+
+A) Network setup
+- Laptop and Raspberry Pi must be on the same network.
+- In pi_sender.py, set laptop address:
+  PC_IP = "YOUR_LAPTOP_IP_OR_HOSTNAME"
+- WebSocket URL is built from this:
+  WS_URL = f"ws://{PC_IP}:8765"
+
+B) Gemini API key (optional, for sentence generation)
+- In laptop_rec.py, set:
+  GEMINI_API_KEY = "YOUR_API_KEY"
+
+4) How to execute
+
+Step 1: Start Laptop receiver/server
+- Open terminal in project folder on Laptop.
+- Run:
+  python laptop_rec.py
+- This starts:
+  - WebSocket server on port 8765
+  - Web/API server on port 3000
+
+Step 2: Start Raspberry Pi sender
+- Open terminal in project folder on Pi.
+- Run:
+  python pi_sender.py
+- Pi captures camera frames, extracts hand landmarks, and sends data to Laptop.
+
+5) Verify it is running
+- Laptop terminal should show model loaded and Pi connection logs.
+- Pi terminal should show successful WebSocket connection.
+- If used, web client can connect to Laptop web server port 3000.
+
+6) Common issues
+- Connection refused:
+  - Check Laptop IP in pi_sender.py
+  - Check firewall allows ports 8765 and 3000
+  - Ensure Laptop script started first
+- ModuleNotFoundError:
+  - Install missing package using pip
+- Camera not opening on Pi:
+  - Check camera cable/device and permissions
+- Model not found on Laptop:
+  - Place sign_language_model.pkl in models/ folder
+
+7) Recommended run order
+1. Start laptop_rec.py on Laptop
+2. Start pi_sender.py on Raspberry Pi

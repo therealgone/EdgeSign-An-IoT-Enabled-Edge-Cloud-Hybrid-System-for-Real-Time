@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+env/
+ENV/
+
+# Machine learning artifacts (train locally or download separately)
+*.pkl
+*.h5
+*.pt
+*.pth
+*.onnx
+*.tflite
+
+# Training data (collect with data_collector_advanced.py)
+*.npy
+SignData/**/
+!SignData/README.md
+!SignData/.gitkeep
+
+# Models directory placeholders only
+models/*
+!models/README.md
+!models/.gitkeep
+
+# Secrets and environment
+.env
+.env.*
+*.pem
+*.key
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+.cache/
+
+# Test artifacts and dev scratch files
+snap.png
+test_output/
+scratch/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Large binary documents (keep source docs locally)
+*.docx
+*.doc
+*.pptx
+*.xlsx
+
+# Windows shortcuts
+Recycle Bin*

@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #13131a;
+    --border:   #1e1e2e;
+    --accent:   #7c3aed;
+    --accent2:  #06b6d4;
+    --danger:   #ef4444;
+    --ok:       #22c55e;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --mono:     'Space Mono', monospace;
+    --sans:     'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    position: relative; z-index: 10;
+  }
+  .logo { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent2); }
+  .pi-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--danger);
+    transition: background 0.4s;
+  }
+  .dot.connected { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  /* ── Layout ── */
+  main {
+    flex: 1; display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 0;
+    position: relative; z-index: 1;
+  }
+
+  /* ── Panel base ── */
+  .panel {
+    padding: 24px;
+    border-right: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ─────────────────────────────────────────
+     LEFT — sentence builder
+  ───────────────────────────────────────── */
+  .left { display: flex; flex-direction: column; gap: 20px; }
+
+  .word-stream {
+    min-height: 100px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 1.5rem; font-weight: 700;
+    letter-spacing: -0.3px;
+    line-height: 1.5;
+    display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start;
+  }
+  .word-chip {
+    background: #1e1e35;
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 1.1rem;
+    animation: chipIn 0.2s ease;
+  }
+  @keyframes chipIn {
+    from { opacity: 0; transform: translateY(6px) scale(0.95); }
+    to   { opacity: 1; transform: none; }
+  }
+  .empty-hint {
+    color: var(--muted); font-size: 0.9rem; font-weight: 400;
+    font-family: var(--mono); align-self: center; width: 100%;
+    text-align: center; padding: 20px 0;
+  }
+
+  /* Live prediction banner */
+  .live-banner {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+  }
+  .live-label {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--accent2); letter-spacing: 1px;
+  }
+  .live-word {
+    font-size: 2rem; font-weight: 800; letter-spacing: -1px;
+    flex: 1; text-align: center;
+    transition: all 0.15s;
+  }
+  .live-conf {
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .conf-bar {
+    width: 60px; height: 4px;
+    background: var(--border); border-radius: 2px; overflow: hidden;
+  }
+  .conf-fill {
+    height: 100%; background: var(--accent2);
+    border-radius: 2px; transition: width 0.2s;
+  }
+
+  /* Action row */
+  .action-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    font-family: var(--sans); font-weight: 700;
+    font-size: 0.82rem; letter-spacing: 0.5px;
+    padding: 10px 18px; border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: #6d28d9; }
+  .btn-ghost {
+    background: transparent; color: var(--text);
+    border-color: var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--muted); background: var(--surface); }
+  .btn-danger {
+    background: transparent; color: var(--danger);
+    border-color: #7f1d1d;
+  }
+  .btn-danger:hover { background: #7f1d1d22; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ─────────────────────────────────────────
+     RIGHT SIDEBAR
+  ───────────────────────────────────────── */
+  .sidebar {
+    display: flex; flex-direction: column; gap: 0;
+    overflow-y: auto;
+  }
+
+  /* ── Audio section ── */
+  .audio-section {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .audio-recorder {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* Big rec button */
+  .rec-btn {
+    width: 100%; padding: 14px;
+    border-radius: 10px; border: none; cursor: pointer;
+    font-family: var(--sans); font-weight: 800;
+    font-size: 0.9rem; letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .rec-btn.idle {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .rec-btn.idle:hover {
+    border-color: var(--accent); color: var(--accent);
+  }
+  .rec-btn.recording {
+    background: #7f1d1d;
+    border: 1px solid var(--danger);
+    color: #fff;
+    animation: recPulse 1.5s ease-in-out infinite;
+  }
+  .rec-btn.transcribing {
+    background: #1c1c35;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    cursor: wait;
+  }
+  @keyframes recPulse {
+    0%, 100% { box-shadow: 0 0 0 0 #ef444444; }
+    50%       { box-shadow: 0 0 0 8px #ef444400; }
+  }
+
+  /* Waveform bars */
+  .waveform {
+    display: flex; align-items: center; gap: 3px;
+    height: 20px;
+  }
+  .wave-bar {
+    width: 3px; border-radius: 2px;
+    background: var(--danger);
+    animation: waveBounce 0.6s ease-in-out infinite alternate;
+  }
+  .wave-bar:nth-child(1) { height: 6px;  animation-delay: 0s; }
+  .wave-bar:nth-child(2) { height: 14px; animation-delay: 0.1s; }
+  .wave-bar:nth-child(3) { height: 18px; animation-delay: 0.05s; }
+  .wave-bar:nth-child(4) { height: 10px; animation-delay: 0.15s; }
+  .wave-bar:nth-child(5) { height: 16px; animation-delay: 0.08s; }
+  @keyframes waveBounce {
+    from { transform: scaleY(0.4); }
+    to   { transform: scaleY(1.2); }
+  }
+
+  /* Duration row */
+  .duration-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .duration-row label {
+    font-size: 0.72rem; color: var(--muted);
+    font-family: var(--mono); white-space: nowrap;
+  }
+  select.dur-select {
+    flex: 1;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 10px; font-family: var(--mono); font-size: 0.8rem;
+    cursor: pointer;
+  }
+  select.dur-select:focus { outline: none; border-color: var(--accent); }
+  .btn-timed {
+    background: transparent; color: var(--accent2);
+    border: 1px solid #164e63; border-radius: 6px;
+    padding: 7px 14px; font-family: var(--sans); font-weight: 700;
+    font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .btn-timed:hover { background: #0c4a6e44; }
+  .btn-timed:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Timer display */
+  .rec-timer {
+    font-family: var(--mono); font-size: 0.8rem;
+    color: var(--danger); text-align: center;
+    height: 18px;
+  }
+
+  /* Audio result preview */
+  .audio-result {
+    background: #0f172a;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--mono); font-size: 0.8rem;
+    color: var(--accent2);
+    line-height: 1.5;
+    display: none;
+  }
+  .audio-result.show { display: block; animation: chipIn 0.2s ease; }
+  .audio-result-actions {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .btn-sm {
+    font-size: 0.75rem; padding: 5px 12px;
+    border-radius: 5px; border: none; cursor: pointer;
+    font-family: var(--sans); font-weight: 700;
+    transition: all 0.15s;
+  }
+  .btn-sm-ok  { background: #14532d; color: #86efac; }
+  .btn-sm-ok:hover { background: #166534; }
+  .btn-sm-no  { background: #1c1c1c; color: var(--muted); }
+  .btn-sm-no:hover { background: #2a2a2a; }
+
+  /* ── OCR section ── */
+  .ocr-section {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ocr-preview {
+    width: 100%; border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden; display: none;
+    margin-bottom: 10px;
+  }
+  .ocr-preview.show { display: block; }
+  .ocr-preview img { width: 100%; display: block; }
+  .ocr-result-text {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    font-family: var(--mono); font-size: 0.78rem; color: var(--text);
+    line-height: 1.6; display: none; max-height: 140px; overflow-y: auto;
+  }
+  .ocr-result-text.show { display: block; animation: chipIn 0.2s ease; }
+  .ocr-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* ── Context section ── */
+  .context-section {
+    padding: 24px;
+    flex: 1;
+  }
+  .context-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+    font-family: var(--mono); font-size: 0.78rem; color: var(--text);
+    line-height: 1.7; min-height: 80px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .context-empty { color: var(--muted); }
+  .context-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* -- Keypad section -- */
+  .keypad-section {
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .keypad-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 6px;
+    min-height: 56px;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .keypad-btn .k {
+    display: block;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .keypad-btn .a {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.62rem;
+    color: var(--muted);
+    line-height: 1.25;
+  }
+  .keypad-btn.active {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1px #06b6d466;
+    transform: translateY(-1px);
+  }
+  .keypad-last {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .preset-editor {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .preset-row {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .preset-row label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .preset-row input {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 0.78rem;
+  }
+  .preset-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .btn-save-preset {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid #164e63;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+
+  /* ── Status bar ── */
+  footer {
+    padding: 10px 28px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+    position: relative; z-index: 10;
+  }
+  .stat { display: flex; align-items: center; gap: 5px; }
+  .stat-val { color: var(--text); }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #1e1e2e; border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 20px;
+    font-size: 0.82rem; color: var(--text);
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none; z-index: 999;
+    max-width: 320px; text-align: center;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── Gemini sentence box ── */
+  .gemini-box {
+    min-height: 70px;
+    background: linear-gradient(135deg, #1a0533 0%, #0f172a 100%);
+    border: 1px solid #4c1d95;
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.6;
+    color: #e9d5ff;
+    letter-spacing: -0.2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .gemini-box::before {
+    content: '✦';
+    position: absolute; top: 10px; right: 14px;
+    color: #7c3aed; font-size: 0.8rem; opacity: 0.5;
+  }
+  .gemini-empty { color: var(--muted); font-size: 0.85rem; font-weight: 400; }
+  .gemini-box.generating {
+    animation: geminiPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes geminiPulse {
+    0%, 100% { border-color: #4c1d95; }
+    50%       { border-color: #7c3aed; box-shadow: 0 0 12px #7c3aed44; }
+  }
+
+  /* ── Debug panel ── */
+  .debug-section {
+    border-top: 1px solid var(--border);
+  }
+  .debug-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px;
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--text); line-height: 1.8;
+  }
+  .debug-log {
+    background: #050508;
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px;
+    font-family: var(--mono); font-size: 0.7rem;
+    color: #94a3b8; line-height: 1.7;
+    max-height: 160px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .debug-err-entry {
+    border-bottom: 1px solid #1e1e2e; padding-bottom: 6px; margin-bottom: 6px;
+  }
+  .debug-err-ctx  { color: var(--danger); font-weight: bold; }
+  .debug-err-msg  { color: #fca5a5; }
+  .debug-err-fix  { color: #86efac; }
+  .debug-err-time { color: var(--muted); font-size: 0.65rem; }
+
+  @media (max-width: 680px) {
+    main { grid-template-columns: 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .sidebar { border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sign<span>Bridge</span></div>
+  <div class="pi-badge">
+    <div class="dot" id="pi-dot"></div>
+    <span id="pi-status">Pi disconnected</span>
+    &nbsp;&nbsp;
+    <button onclick="toggleDebug()" id="debug-toggle-btn"
+      style="background:none;border:1px solid var(--border);color:var(--muted);
+             border-radius:5px;padding:3px 10px;font-size:0.68rem;cursor:pointer;
+             font-family:var(--mono)">
+      DEV
+    </button>
+  </div>
+</header>
+
+<main>
+  <!-- ══════════════ LEFT — sign language ══════════════ -->
+  <div class="panel left">
+    <div class="panel-title">Detected Sentence</div>
+
+    <div class="word-stream" id="word-stream">
+      <div class="empty-hint" id="empty-hint">Start signing to see words appear…</div>
+    </div>
+
+    <!-- Live prediction -->
+    <div class="live-banner">
+      <div class="live-label">LIVE</div>
+      <div class="live-word" id="live-word">—</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="live-conf" id="live-conf">0%</div>
+        <div class="conf-bar"><div class="conf-fill" id="conf-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-primary" onclick="addWord()">+ Add Word</button>
+      <button class="btn btn-ghost"   onclick="deleteLastWord()">⌫ Delete Last</button>
+      <button class="btn btn-danger"  onclick="clearWords()">✕ Clear All</button>
+    </div>
+
+    <!-- Gemini output -->
+    <div class="panel-title" style="margin-top:4px">Generated Sentence</div>
+    <div class="gemini-box" id="gemini-box">
+      <span class="gemini-empty">Press <b>Send to Gemini</b> to generate a sentence from your words.</span>
+    </div>
+    <div class="action-row" id="gemini-actions">
+      <button class="btn btn-primary" id="gemini-btn" onclick="sendToGemini()">
+        <span id="gemini-btn-icon">✦</span> Send to Gemini
+      </button>
+      <button class="btn btn-ghost" id="speak-btn" onclick="speakSentence()" style="display:none">
+        🔊 Speak Again
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════ RIGHT SIDEBAR ══════════════ -->
+  <div class="sidebar">
+
+    <!-- ── AUDIO ── -->
+    <div class="audio-section">
+      <div class="panel-title">Voice Context</div>
+      <div class="audio-recorder">
+
+        <!-- Big start/stop button -->
+        <button class="rec-btn idle" id="rec-btn" onclick="toggleRecording()">
+          <span id="rec-btn-icon">🎤</span>
+          <span id="rec-btn-label">Start Recording</span>
+          <div class="waveform" id="waveform" style="display:none">
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+        </button>
+
+        <!-- Timer -->
+        <div class="rec-timer" id="rec-timer"></div>
+
+        <!-- Fixed duration row -->
+        <div class="duration-row">
+          <label>Fixed:</label>
+          <select class="dur-select" id="dur-select">
+            <option value="5">5 sec</option>
+            <option value="10" selected>10 sec</option>
+            <option value="15">15 sec</option>
+            <option value="30">30 sec</option>
+            <option value="60">60 sec</option>
+          </select>
+          <button class="btn-timed" id="btn-timed" onclick="startTimedRecording()">▶ Timed</button>
+        </div>
+
+        <!-- Transcription result -->
+        <div class="audio-result" id="audio-result">
+          <div id="audio-result-text"></div>
+          <div class="audio-result-actions">
+            <button class="btn-sm btn-sm-ok" onclick="useAudioAsContext()">✓ Use as Context</button>
+            <button class="btn-sm btn-sm-no" onclick="dismissAudioResult()">✕ Discard</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── OCR ── -->
+    <div class="ocr-section">
+      <div class="panel-title">OCR Context</div>
+      <div class="ocr-preview" id="ocr-preview">
+        <img id="ocr-img" src="" alt="Captured frame">
+      </div>
+      <div class="ocr-result-text" id="ocr-result-text"></div>
+      <div class="ocr-actions">
+        <button class="btn btn-ghost" onclick="requestOCR()" id="ocr-btn">📷 Capture &amp; Read</button>
+        <button class="btn btn-ghost" onclick="useOCRAsContext()" id="ocr-use-btn" style="display:none">✓ Use as Context</button>
+        <button class="btn btn-ghost" onclick="dismissOCR()" id="ocr-dismiss-btn" style="display:none">✕</button>
+      </div>
+    </div>
+
+    <!-- ── CONTEXT ── -->
+    <div class="context-section">
+      <div class="panel-title">Active Context</div>
+      <div class="context-box" id="context-box">
+        <span class="context-empty">No context set — use Voice or OCR above to add.</span>
+      </div>
+      <div class="context-actions">
+        <button class="btn btn-danger" onclick="clearContext()" style="font-size:0.75rem;padding:7px 12px">✕ Clear Context</button>
+      </div>
+    </div>
+
+    <div class="keypad-section">
+      <div class="panel-title">Keypad Sync</div>
+      <div class="keypad-last" id="keypad-last">Last key: none</div>
+      <div class="keypad-grid" id="keypad-grid"></div>
+      <div class="panel-title" style="margin-top:6px">Preset Sentences</div>
+      <div class="preset-editor">
+        <div class="preset-row">
+          <label for="preset-1">Preset 1</label>
+          <input id="preset-1" type="text" placeholder="Type sentence for slot 1">
+          <button class="btn-save-preset" onclick="savePreset(1)">Save</button>
+        </div>
+        <div class="preset-row">
+          <label for="preset-2">Preset 2</label>
+          <input id="preset-2" type="text" placeholder="Type sentence for slot 2">
+          <button class="btn-save-preset" onclick="savePreset(2)">Save</button>
+        </div>
+        <div class="preset-row">
+          <label for="preset-3">Preset 3</label>
+          <input id="preset-3" type="text" placeholder="Type sentence for slot 3">
+          <button class="btn-save-preset" onclick="savePreset(3)">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DEBUG / DEVELOPER ── -->
+    <div class="debug-section" id="debug-section" style="display:none">
+      <div class="panel-title" style="padding:24px 24px 0">
+        Developer
+        <button onclick="refreshDebug()" style="margin-left:8px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:2px 8px;font-size:0.65rem;cursor:pointer">↻ Refresh</button>
+      </div>
+      <div style="padding:0 24px 24px">
+
+        <!-- Stats -->
+        <div class="debug-block" id="debug-stats"></div>
+
+        <!-- Error log -->
+        <div class="panel-title" style="margin-top:16px;margin-bottom:8px">Error Log</div>
+        <div class="debug-log" id="debug-log">No errors</div>
+
+        <!-- Last OCR raw -->
+        <div class="panel-title" style="margin-top:16px;margin-bottom:8px">Last OCR Result</div>
+        <div class="debug-log" id="debug-ocr">—</div>
+
+        <!-- Last audio raw -->
+        <div class="panel-title" style="margin-top:16px;margin-bottom:8px">Last Audio Result</div>
+        <div class="debug-log" id="debug-audio">—</div>
+
+        <!-- Last frame preview -->
+        <div class="panel-title" style="margin-top:16px;margin-bottom:8px">Last Pi Frame</div>
+        <div id="debug-frame-wrap" style="display:none">
+          <img id="debug-frame-img" style="width:100%;border-radius:6px;border:1px solid var(--border)" src="" alt="">
+        </div>
+        <div id="debug-frame-none" style="font-family:var(--mono);font-size:0.75rem;color:var(--muted)">No frame captured yet</div>
+
+        <!-- Dev camera stream -->
+        <div class="panel-title" style="margin-top:16px;margin-bottom:8px">Dev Cam Stream</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <button onclick="toggleDevStream()" id="dev-stream-btn" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:4px 10px;font-size:0.72rem;cursor:pointer;font-family:var(--mono)">Start Stream</button>
+          <span id="dev-stream-state" style="font-family:var(--mono);font-size:0.72rem;color:var(--muted)">OFF</span>
+        </div>
+        <div id="dev-stream-wrap" style="display:none">
+          <img id="dev-stream-img" style="width:100%;border-radius:6px;border:1px solid var(--border)" src="" alt="Pi dev stream">
+        </div>
+        <div id="dev-stream-none" style="font-family:var(--mono);font-size:0.75rem;color:var(--muted)">Dev stream is off</div>
+      </div>
+    </div>
+
+  </div><!-- end sidebar -->
+</main>
+
+<footer>
+  <div class="stat">Frames <span class="stat-val" id="stat-frames">0</span></div>
+  <div class="stat">Predictions <span class="stat-val" id="stat-preds">0</span></div>
+  <div class="stat">OCR calls <span class="stat-val" id="stat-ocr">0</span></div>
+  <div class="stat">Audio calls <span class="stat-val" id="stat-audio">0</span></div>
+  <div style="flex:1"></div>
+  <div style="color:#334155">SignBridge v3</div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════════
+const WS_URL = `ws://${location.hostname}:3000/ws`;
+let ws = null;
+let reconnectTimer = null;
+let keypadMap = {};
+let devStreamEnabled = false;
+const keypadLayout = [
+  ['1', '2', '3', 'A'],
+  ['4', '5', '6', 'B'],
+  ['7', '8', '9', 'C'],
+  ['*', '0', '#', 'D'],
+];
+const fallbackActionByKey = {
+  '1': 'scroll_down',
+  '2': 'preset_1',
+  '3': 'preset_2',
+  'A': 'add_word',
+  '4': 'preset_3',
+  '5': 'standard_key_5',
+  '6': 'standard_key_6',
+  'B': 'send_to_ai',
+  '7': 'standard_key_7',
+  '8': 'standard_key_8',
+  '9': 'standard_key_9',
+  'C': 'request_ocr',
+  '*': 'delete_last',
+  '0': 'scroll_up',
+  '#': 'clear_words',
+  'D': 'toggle_audio',
+};
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    clearTimeout(reconnectTimer);
+    initBrowserAudio(ws);
+    toast('Connected to server');
+  };
+
+  ws.onclose = () => {
+    setPiStatus(false);
+    toast('Server disconnected — retrying…');
+    reconnectTimer = setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    switch (msg.type) {
+      case 'init':
+        setFeatures(msg.features || {});
+        renderWords(msg.words || []);
+        renderContext(msg.context || '');
+        keypadMap = msg.keypad_map || {};
+        renderKeypadGrid();
+        renderPresets(msg.presets || {});
+        setDevStreamState(!!msg.dev_stream_enabled);
+        if (msg.last_keypad_event) {
+          onKeypadPress(msg.last_keypad_event);
+        }
+        updateStats(msg.stats || {});
+        break;
+      case 'status':
+        setPiStatus(msg.pi_connected);
+        updateStats(msg.stats || {});
+        break;
+      case 'word_detected':
+        showLiveWord(msg.word, msg.confidence);
+        break;
+      case 'words_updated':
+        renderWords(msg.words);
+        break;
+      case 'keypad_press':
+        onKeypadPress(msg);
+        break;
+      case 'presets_updated':
+        renderPresets(msg.presets || {});
+        if (msg.updated_slot) toast(`Preset ${msg.updated_slot} saved`);
+        break;
+      case 'preset_triggered':
+        toast(`Preset ${msg.slot}: ${msg.sentence}`);
+        break;
+      case 'standard_key_input':
+        toast(`Standard key: ${msg.key}`);
+        break;
+      case 'context_updated':
+        renderContext(msg.context);
+        break;
+      case 'audio_status':
+        onAudioStatus(msg);
+        break;
+      case 'audio_result':
+        onAudioResult(msg);
+        break;
+      case 'ocr_result':
+        onOCRResult(msg);
+        break;
+      case 'gemini_status':
+        onGeminiStatus(msg);
+        break;
+      case 'gemini_sentence':
+        onGeminiSentence(msg);
+        break;
+      case 'debug_data':
+        onDebugData(msg);
+        break;
+      case 'dev_frame':
+        onDevFrame(msg);
+        break;
+      case 'dev_stream_status':
+        setDevStreamState(!!msg.enabled);
+        break;
+      case 'error':
+        const err = msg.error || {};
+        toast(`Error: ${err.error || JSON.stringify(err)}`, true);
+        resetAudioUI();
+        break;
+    }
+  };
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+    return true;
+  }
+  return false;
+}
+
+connect();
+
+// ═══════════════════════════════════════════════════════════════
+// SIGN LANGUAGE — words
+// ═══════════════════════════════════════════════════════════════
+let lastWord = '';
+let lastConf = 0;
+
+function showLiveWord(word, conf) {
+  lastWord = word; lastConf = conf;
+  document.getElementById('live-word').textContent = word.toUpperCase();
+  document.getElementById('live-conf').textContent = (conf * 100).toFixed(0) + '%';
+  document.getElementById('conf-fill').style.width  = (conf * 100) + '%';
+}
+
+function renderWords(words) {
+  const el   = document.getElementById('word-stream');
+  const hint = document.getElementById('empty-hint');
+  if (words.length === 0) {
+    el.innerHTML = '';
+    el.appendChild(hint);
+    hint.style.display = 'block';
+    return;
+  }
+  hint.style.display = 'none';
+  // Only fully re-render if the server count differs from what we already show
+  // (avoids duplicate chips caused by the optimistic local add below)
+  const existing = el.querySelectorAll('.word-chip').length;
+  if (existing !== words.length) {
+    el.innerHTML = '';
+    words.forEach(w => {
+      const chip = document.createElement('span');
+      chip.className   = 'word-chip';
+      chip.textContent = w;
+      el.appendChild(chip);
+    });
+    el.appendChild(hint);
+  }
+}
+
+function _appendWordChip(word) {
+  const el   = document.getElementById('word-stream');
+  const hint = document.getElementById('empty-hint');
+  hint.style.display = 'none';
+  const chip = document.createElement('span');
+  chip.className   = 'word-chip';
+  chip.textContent = word;
+  el.appendChild(chip);
+}
+
+function addWord() {
+  if (!lastWord) {
+    toast('No word detected yet — sign a gesture first', true);
+    return;
+  }
+  // Show chip immediately — don't wait for server round-trip
+  _appendWordChip(lastWord);
+  send({ command: 'add_word', word: lastWord });
+}
+
+function deleteLastWord(){ send({ command: 'delete_last' }); }
+function clearWords()    { send({ command: 'clear_words' }); }
+
+// ═══════════════════════════════════════════════════════════════
+// BROWSER AUDIO RECORDER
+// Records from the device microphone (laptop or phone)
+// Sends float32 PCM → server → Whisper
+// ═══════════════════════════════════════════════════════════════
+let _audioCtx        = null;
+let _mediaStream     = null;
+let _scriptProcessor = null;
+let _sourceNode      = null;
+let _recordedSamples = [];
+let _isRecording     = false;
+let _recordingStart  = 0;
+let _wsRef           = null;
+let _timerInterval   = null;
+let _timedTimeout    = null;
+let _pendingAudioText = '';
+
+const TARGET_RATE = 16000;
+const BUFFER_SIZE = 4096;
+
+function initBrowserAudio(wsConn) {
+  _wsRef = wsConn;
+}
+
+async function startBrowserRecording() {
+  if (_isRecording) return;
+
+  try {
+    _mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount:     1,
+        sampleRate:       TARGET_RATE,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl:  true,
+      }
+    });
+
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_RATE });
+    _sourceNode      = _audioCtx.createMediaStreamSource(_mediaStream);
+    _scriptProcessor = _audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1);
+    _recordedSamples = [];
+    _isRecording     = true;
+    _recordingStart  = Date.now();
+
+    _scriptProcessor.onaudioprocess = (e) => {
+      if (_isRecording) _recordedSamples.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+
+    _sourceNode.connect(_scriptProcessor);
+    _scriptProcessor.connect(_audioCtx.destination);
+
+    setRecUI('recording');
+    startTimer();
+
+  } catch (err) {
+    toast('Mic access denied: ' + err.message, true);
+    setRecUI('idle');
+  }
+}
+
+function stopBrowserRecording() {
+  if (!_isRecording) return;
+  _isRecording = false;
+  stopTimer();
+  clearTimeout(_timedTimeout);
+
+  if (_scriptProcessor) { _scriptProcessor.disconnect(); _scriptProcessor = null; }
+  if (_sourceNode)       { _sourceNode.disconnect();       _sourceNode       = null; }
+  if (_mediaStream)      { _mediaStream.getTracks().forEach(t => t.stop()); }
+  if (_audioCtx)         { _audioCtx.close();              _audioCtx         = null; }
+
+  if (_recordedSamples.length === 0) { setRecUI('idle'); return; }
+
+  const totalLen = _recordedSamples.reduce((n, c) => n + c.length, 0);
+  const merged   = new Float32Array(totalLen);
+  let offset = 0;
+  for (const c of _recordedSamples) { merged.set(c, offset); offset += c.length; }
+  _recordedSamples = [];
+
+  const duration = (Date.now() - _recordingStart) / 1000;
+  setRecUI('transcribing');
+  sendAudioToServer(merged, duration);
+}
+
+function toggleRecording() {
+  if (_isRecording) stopBrowserRecording();
+  else              startBrowserRecording();
+}
+
+function startTimedRecording() {
+  const secs = parseInt(document.getElementById('dur-select').value, 10);
+  startBrowserRecording().then(() => {
+    _timedTimeout = setTimeout(() => stopBrowserRecording(), secs * 1000);
+  });
+}
+
+function sendAudioToServer(float32Arr, duration) {
+  if (!_wsRef || _wsRef.readyState !== WebSocket.OPEN) {
+    toast('Not connected to server', true); setRecUI('idle'); return;
+  }
+  const bytes = new Uint8Array(float32Arr.buffer);
+  // Chunked base64 — avoids call-stack overflow on large buffers
+  const CHUNK = 8192;
+  let binary  = '';
+  for (let i = 0; i < bytes.length; i += CHUNK)
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  const b64 = btoa(binary);
+  _wsRef.send(JSON.stringify({ command: 'browser_audio', audio: b64, duration: +duration.toFixed(2) }));
+}
+
+// ── Timer ──
+function startTimer() {
+  _timerInterval = setInterval(() => {
+    const secs = ((Date.now() - _recordingStart) / 1000).toFixed(1);
+    document.getElementById('rec-timer').textContent = `${secs}s`;
+  }, 100);
+}
+function stopTimer() {
+  clearInterval(_timerInterval);
+  document.getElementById('rec-timer').textContent = '';
+}
+
+// ── UI states ──
+function setRecUI(state) {
+  const btn   = document.getElementById('rec-btn');
+  const icon  = document.getElementById('rec-btn-icon');
+  const label = document.getElementById('rec-btn-label');
+  const wave  = document.getElementById('waveform');
+  const timed = document.getElementById('btn-timed');
+
+  btn.className = 'rec-btn ' + state;
+  timed.disabled = (state !== 'idle');
+
+  if (state === 'idle') {
+    icon.textContent  = '🎤'; label.textContent = 'Start Recording';
+    wave.style.display = 'none';
+  } else if (state === 'recording') {
+    icon.textContent  = '⏹'; label.textContent = 'Stop & Transcribe';
+    wave.style.display = 'flex';
+  } else if (state === 'transcribing') {
+    icon.textContent  = ''; label.textContent = 'Transcribing…';
+    wave.style.display = 'none';
+  }
+}
+
+function resetAudioUI() { setRecUI('idle'); }
+
+// ── Results ──
+function onAudioStatus(msg) {
+  if (msg.status === 'transcribing') setRecUI('transcribing');
+  if (msg.status === 'recording')    setRecUI('recording');
+}
+
+function onAudioResult(msg) {
+  setRecUI('idle');
+  _pendingAudioText = msg.text || '';
+  const el = document.getElementById('audio-result');
+  document.getElementById('audio-result-text').textContent = '"' + _pendingAudioText + '"';
+  el.classList.add('show');
+  toast('Transcription ready — review below');
+}
+
+function useAudioAsContext() {
+  if (!_pendingAudioText) return;
+  send({ command: 'add_context', text: _pendingAudioText });
+  dismissAudioResult();
+}
+
+function dismissAudioResult() {
+  document.getElementById('audio-result').classList.remove('show');
+  _pendingAudioText = '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OCR
+// ═══════════════════════════════════════════════════════════════
+let _pendingOCRText = '';
+
+function requestOCR() {
+  send({ command: 'request_ocr' });
+  document.getElementById('ocr-btn').textContent = '⏳ Capturing…';
+  document.getElementById('ocr-btn').disabled = true;
+}
+
+function onOCRResult(msg) {
+  document.getElementById('ocr-btn').textContent = '📷 Capture & Read';
+  document.getElementById('ocr-btn').disabled = false;
+
+  _pendingOCRText = msg.text || '';
+  if (msg.image_preview) {
+    document.getElementById('ocr-img').src = 'data:image/jpeg;base64,' + msg.image_preview;
+    document.getElementById('ocr-preview').classList.add('show');
+  }
+  document.getElementById('ocr-result-text').textContent = _pendingOCRText;
+  document.getElementById('ocr-result-text').classList.add('show');
+  document.getElementById('ocr-use-btn').style.display     = 'inline-flex';
+  document.getElementById('ocr-dismiss-btn').style.display = 'inline-flex';
+}
+
+function useOCRAsContext() {
+  if (!_pendingOCRText) return;
+  send({ command: 'add_context', text: _pendingOCRText });
+  dismissOCR();
+}
+
+function dismissOCR() {
+  document.getElementById('ocr-preview').classList.remove('show');
+  document.getElementById('ocr-result-text').classList.remove('show');
+  document.getElementById('ocr-use-btn').style.display     = 'none';
+  document.getElementById('ocr-dismiss-btn').style.display = 'none';
+  _pendingOCRText = '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONTEXT
+// ═══════════════════════════════════════════════════════════════
+function renderContext(text) {
+  const el = document.getElementById('context-box');
+  if (!text) {
+    el.innerHTML = '<span class="context-empty">No context set — use Voice or OCR above to add.</span>';
+  } else {
+    el.textContent = text;
+  }
+}
+
+function clearContext() { send({ command: 'remove_context' }); }
+
+function renderKeypadGrid() {
+  const grid = document.getElementById('keypad-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  keypadLayout.flat().forEach((key) => {
+    const action = fallbackActionByKey[key] || '';
+    const label = keypadMap[action] || action || '—';
+    const el = document.createElement('div');
+    el.className = 'keypad-btn';
+    el.id = `keypad-btn-${key === '*' ? 'star' : key === '#' ? 'hash' : key}`;
+    el.dataset.key = key;
+    el.innerHTML = `<span class="k">${key}</span><span class="a">${label}</span>`;
+    grid.appendChild(el);
+  });
+}
+
+function onKeypadPress(msg) {
+  const key = msg.key || '';
+  const action = msg.action || fallbackActionByKey[key] || '';
+  const label = msg.action_label || keypadMap[action] || action;
+  document.getElementById('keypad-last').textContent = `Last key: ${key || '?'} -> ${label || 'unknown action'}`;
+
+  const id = `keypad-btn-${key === '*' ? 'star' : key === '#' ? 'hash' : key}`;
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), 280);
+  }
+}
+
+function renderPresets(presets) {
+  for (const slot of [1, 2, 3]) {
+    const input = document.getElementById(`preset-${slot}`);
+    if (!input) continue;
+    const value = presets[String(slot)] || presets[slot] || '';
+    input.value = value;
+  }
+}
+
+function savePreset(slot) {
+  const input = document.getElementById(`preset-${slot}`);
+  if (!input) return;
+  send({ command: 'update_preset', slot, text: input.value || '' });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATUS / HELPERS
+// ═══════════════════════════════════════════════════════════════
+function setPiStatus(connected) {
+  document.getElementById('pi-dot').className    = 'dot' + (connected ? ' connected' : '');
+  document.getElementById('pi-status').textContent = connected ? 'Pi connected' : 'Pi disconnected';
+}
+
+function setFeatures(f) {
+  if (!f.audio)   toast('Whisper not loaded on server — audio disabled', true);
+  if (!f.ocr)     toast('EasyOCR not loaded on server — OCR disabled',   true);
+}
+
+function updateStats(s) {
+  if (!s) return;
+  document.getElementById('stat-frames').textContent = s.frames_received   || 0;
+  document.getElementById('stat-preds').textContent  = s.predictions_made  || 0;
+  document.getElementById('stat-ocr').textContent    = s.ocr_calls         || 0;
+  document.getElementById('stat-audio').textContent  = s.audio_calls       || 0;
+}
+
+// ── Toast ──
+let _toastTimer = null;
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent   = msg;
+  el.style.borderColor = isError ? '#7f1d1d' : 'var(--border)';
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}// ═══════════════════════════════════════════════════════════════
+// GEMINI
+// ═══════════════════════════════════════════════════════════════
+let _lastSentence = '';
+
+function sendToGemini() {
+  send({ command: 'send_to_ai' });
+  setGeminiUI('generating');
+}
+
+function speakSentence() {
+  if (_lastSentence) send({ command: 'speak_sentence', sentence: _lastSentence });
+}
+
+function setGeminiUI(state) {
+  const box  = document.getElementById('gemini-box');
+  const btn  = document.getElementById('gemini-btn');
+  const icon = document.getElementById('gemini-btn-icon');
+  const spk  = document.getElementById('speak-btn');
+
+  if (state === 'generating') {
+    box.classList.add('generating');
+    box.innerHTML = '<span class="gemini-empty">✦ Generating sentence…</span>';
+    btn.disabled  = true;
+    icon.textContent = '⏳';
+    spk.style.display = 'none';
+  } else {
+    box.classList.remove('generating');
+    btn.disabled     = false;
+    icon.textContent = '✦';
+  }
+}
+
+function onGeminiStatus(msg) {
+  if (msg.status === 'generating') setGeminiUI('generating');
+  else                              setGeminiUI('idle');
+}
+
+function onGeminiSentence(msg) {
+  _lastSentence = msg.sentence || '';
+  setGeminiUI('idle');
+  const box = document.getElementById('gemini-box');
+  box.textContent = _lastSentence;
+  document.getElementById('speak-btn').style.display = 'inline-flex';
+  toast('Sentence generated — playing on laptop speaker');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DEBUG / DEVELOPER PANEL
+// ═══════════════════════════════════════════════════════════════
+let _debugOpen = false;
+
+function toggleDebug() {
+  _debugOpen = !_debugOpen;
+  document.getElementById('debug-section').style.display = _debugOpen ? 'block' : 'none';
+  const btn = document.getElementById('debug-toggle-btn');
+  btn.style.borderColor = _debugOpen ? 'var(--accent2)' : 'var(--border)';
+  btn.style.color       = _debugOpen ? 'var(--accent2)' : 'var(--muted)';
+  if (_debugOpen) refreshDebug();
+}
+
+function refreshDebug() {
+  if (!send({ command: 'get_debug_data' })) {
+    toast('WebSocket not connected', true);
+  }
+}
+
+function toggleDevStream() {
+  const next = !devStreamEnabled;
+  // Optimistic update so the button always feels clickable.
+  setDevStreamState(next);
+  if (!send({ command: 'toggle_dev_stream', enabled: next })) {
+    toast('WebSocket not connected', true);
+    setDevStreamState(!next);
+    return;
+  }
+  toast(next ? 'Starting dev stream…' : 'Stopping dev stream…');
+}
+
+function setDevStreamState(enabled) {
+  devStreamEnabled = enabled;
+  const btn = document.getElementById('dev-stream-btn');
+  const state = document.getElementById('dev-stream-state');
+  if (!btn || !state) return;
+  if (enabled) {
+    btn.textContent = 'Stop Stream';
+    btn.style.borderColor = 'var(--accent2)';
+    btn.style.color = 'var(--accent2)';
+    state.textContent = 'ON';
+    state.style.color = 'var(--ok)';
+    const none = document.getElementById('dev-stream-none');
+    if (none) none.textContent = 'Waiting for first frame...';
+  } else {
+    btn.textContent = 'Start Stream';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--muted)';
+    state.textContent = 'OFF';
+    state.style.color = 'var(--muted)';
+    const none = document.getElementById('dev-stream-none');
+    if (none) none.textContent = 'Dev stream is off';
+  }
+}
+
+function onDevFrame(msg) {
+  const imgB64 = msg.image || '';
+  if (!imgB64) return;
+  const img = document.getElementById('dev-stream-img');
+  const wrap = document.getElementById('dev-stream-wrap');
+  const none = document.getElementById('dev-stream-none');
+  if (!img || !wrap || !none) return;
+  img.src = 'data:image/jpeg;base64,' + imgB64;
+  wrap.style.display = 'block';
+  none.style.display = 'none';
+}
+
+// Handle debug_data response from server
+function onDebugData(msg) {
+  // Stats
+  const s = msg.stats || {};
+  document.getElementById('debug-stats').innerHTML =
+    `frames_received: <b>${s.frames_received||0}</b><br>` +
+    `predictions_made: <b>${s.predictions_made||0}</b><br>` +
+    `ocr_calls: <b>${s.ocr_calls||0}</b><br>` +
+    `audio_calls: <b>${s.audio_calls||0}</b>`;
+
+  // Error log
+  const errors = msg.error_log || [];
+  const logEl  = document.getElementById('debug-log');
+  if (errors.length === 0) {
+    logEl.textContent = 'No errors logged ✓';
+  } else {
+    logEl.innerHTML = errors.slice().reverse().map(e =>
+      `<div class="debug-err-entry">` +
+      `<span class="debug-err-time">${e.timestamp||''}</span>\n` +
+      `<span class="debug-err-ctx">[${e.context||'?'}]</span> ` +
+      `<span class="debug-err-msg">${e.error||''}</span>` +
+      (e.solution ? `\n<span class="debug-err-fix">→ ${e.solution}</span>` : '') +
+      `</div>`
+    ).join('');
+  }
+
+  // Last OCR
+  const ocr = msg.last_ocr;
+  document.getElementById('debug-ocr').textContent =
+    ocr ? `[${ocr.timestamp}]\n${ocr.text || '(empty)'}` : 'No OCR yet';
+
+  // Last audio
+  document.getElementById('debug-audio').textContent =
+    msg.last_audio ? '(raw base64 present — not shown)' : 'No audio yet';
+
+  // Last Pi frame preview
+  if (msg.last_frame) {
+    document.getElementById('debug-frame-img').src = 'data:image/jpeg;base64,' + msg.last_frame;
+    document.getElementById('debug-frame-wrap').style.display = 'block';
+    document.getElementById('debug-frame-none').style.display = 'none';
+  } else {
+    document.getElementById('debug-frame-wrap').style.display = 'none';
+    document.getElementById('debug-frame-none').style.display = 'block';
+  }
+
+  // Dev stream status + latest frame
+  setDevStreamState(!!msg.dev_stream_enabled);
+  if (msg.last_dev_frame) {
+    onDevFrame({ image: msg.last_dev_frame });
+  } else if (!devStreamEnabled) {
+    const wrap = document.getElementById('dev-stream-wrap');
+    const none = document.getElementById('dev-stream-none');
+    if (wrap && none) {
+      wrap.style.display = 'none';
+      none.style.display = 'block';
+    }
+  }
+}
+</script>
+</body>
+</html>
